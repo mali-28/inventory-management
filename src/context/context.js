@@ -1,105 +1,117 @@
-// import { getDatabase, ref, child, get, onChildChanged , onChildAdded, onChildRemoved, remove} from "firebase/database";
-// import React, { createContext, useEffect, useState } from "react";
-// import { getLocalStorage, } from "../utils/utils";
+import {writeUserData, getDatabase, ref, child,set, get, onChildAdded, onChildChanged} from "firebase/database";
+import React, { createContext, useEffect, useState } from "react";
+import { getLocalStorage } from "../utils/utils";
+import { localStorageKeys } from "../utils/constant";
+const loginContext = createContext({
+    token: "",
+    user: "",
+    showData: "",
+    pendingData : [],
+    approvedData : [],
+    setToken: () => {},
+    setUser: () => {},
+    setShowData: () => {},
+    setPendingData: () => {},
+    setApprovedData: () => {},
+    database : () =>{},
+    writeUserData : ()=>{}
+});
 
-// const loginContext = createContext({
-//     login: "",
-//     user: "",
-//     showData: "",
-//     userLocation: "",
-//     isDonor : "",
-//     setLogin: () => { },
-//     setUser: () => { },
-//     setShowData: () => { },
-//     setUserLocation: () => { },
-//     removeItem : () => {},
-//     setIsDonor : () =>{}
-// });
+const Context = (props) => {
 
-// const Context = (props) => {
+        const [token, setToken] = useState(getLocalStorage(localStorageKeys.token));
+        const [user, setUser] = useState(getLocalStorage(localStorageKeys.user) || {});
+        const [showData, setShowData] = useState({});
+        const [pendingData, setPendingData] = useState([]);
+        const [approvedData, setApprovedData] = useState([]);
+        const db = getDatabase();
 
+        const  writeUserData = (userId, data) =>{
+    
+            set(ref(db, 'users/' + userId), {
+              userData: data,
+            });
+          }
 
-//     const [login, setLogin] = useState(getLocalStorage("Islogin"));
-//     const [user, setUser] = useState(getLocalStorage("__USER__") || {});
-//     const [userLocation, setUserLocation] = useState(getLocalStorage("location") || [])
-//     const [isDonor, setIsDonor] = useState(false)
-//     const [showData, setShowData] = useState({});
+        const database =  () =>{
+            const dbRef = ref(getDatabase());
+            get(child(dbRef, `users`)).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const snaps = snapshot.val();
+                    setShowData(snaps)
+                    Object.values(snaps)?.forEach((val)=>{
+                        if(val.userData.isVerify){
+                              setApprovedData(Object.values(val));
+                        }else{
+                            setPendingData(Object.values(val));
+                        }
+                    })
+                } else {
+                    setShowData({})
+                }
+            }).catch((error) => {
+                console.error(error);
+            })
 
+        }
 
-//     const database =  () =>{
-//         const dbRef = ref(getDatabase());
-//         get(child(dbRef, `users`)).then((snapshot) => {
-//             if (snapshot.exists()) {
-//                 setShowData(snapshot.val())
-//             } else {
-//                 setShowData({})
-//             }
-//         }).catch((error) => {
-//             console.error(error);
-//         })
+        useEffect(() => {
 
-//     }
+            const token = getLocalStorage(localStorageKeys.token);
+            setToken(token);
 
-//     useEffect(() => {
+            onChildChanged(ref(db, '/users'), (snapshot) => {
+                if (snapshot.exists()) {
+                    const updatedData =  snapshot.val();
+                    setShowData((pre)=> {
+                        return {...pre, [updatedData.userData.id] : updatedData}
+                    })
 
-//         const token = getLocalStorage("Islogin");
-//         const db = getDatabase();
-//         setLogin(token);
+                    
+                } else {
+                    console.log("No data available");
+                }
+            });
 
-//         onChildChanged(ref(db, '/users'), (snapshot) => {
-//             if (snapshot.exists()) {
-//                 const updatedData =  snapshot.val();
-//                 setShowData((pre)=> {
-//                     return {...pre, [updatedData.userData.id] : updatedData}
-//                 })
-//             } else {
-//                 console.log("No data available");
+            onChildAdded(ref(db, '/users'), (snapshot) => {
+                if (snapshot.exists()) {
+                    const newData =  snapshot.val();
+                    setShowData((pre)=> {
+                        return {...pre, [newData.userData.id] : newData}
+                    })
+                    pendingData.unshift(newData);
 
-//             }
-//             // ...
-//         });
-        
-//         onChildAdded(ref(db, '/users'), (snapshot) => {
-//             if (snapshot.exists()) {
-//                 const newData =  snapshot.val();
-//                 setShowData((pre)=> {
-//                     return {...pre, [newData.userData.id] : newData}
-//                 })
-//             } else {
-//                 console.log("No data available");
+                } else {
+                    console.log("No data available");
 
-//             }
-//         });
-
-        
-        
-        
-      
-       
-//     }, [])
-
-
-//     const removeItem = (key) =>{
-//         const gdb = ref(getDatabase());
-//         remove(child(gdb, `users/${key}`))
-
-//         database();
-//         setIsDonor(false);
-
-//     }
-
-//     useEffect(() => {
-        
-//         database();
-//     }, [])
+                }
+            });
 
 
-//     return <>
-//         <loginContext.Provider value={}>
-//             {props.children}
-//         </loginContext.Provider></>
+        }, [])
 
-// }
 
-// export default Context;
-// export { loginContext };
+    //     const removeItem = (key) =>{
+    //         const gdb = ref(getDatabase());
+    //         remove(child(gdb, `users/${key}`))
+
+            // database();
+    //         setIsDonor(false);
+    //     }
+
+        useEffect(() => {
+
+            database();
+        }, [])
+
+
+    return <>
+        <loginContext.Provider value={{writeUserData,database,showData,setShowData,pendingData,approvedData,user, setUser, token, setToken}}>
+            {props.children}
+        </loginContext.Provider>
+    </>
+
+    }
+
+    export default Context;
+    export { loginContext };
